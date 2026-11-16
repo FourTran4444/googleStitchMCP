@@ -9,7 +9,7 @@ const headers = {'Cache-Control':'no-store','X-Content-Type-Options':'nosniff','
 export const json = (data,status=200,extra={}) => Response.json(data,{status,headers:{...headers,...extra}});
 const error = (message='invalid_request',status=400) => json({error:message},status);
 const escape = s => String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const page = (body,cookie,status=200) => new Response(`<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Stitch Cloudflare authorization</title><body><main><h1>Stitch Cloudflare</h1>${body}</main></body></html>`,{status,headers:{...headers,'Content-Type':'text/html; charset=utf-8','Content-Security-Policy':"default-src 'none'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'",...(cookie?{'Set-Cookie':cookie}:{})}});
+const page = (body,cookie,status=200) => new Response(`<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Stitch Cloudflare authorization</title><body><main><h1>Stitch Cloudflare</h1>${body}</main></body></html>`,{status,headers:{...headers,'Content-Type':'text/html; charset=utf-8','Content-Security-Policy':"default-src 'none'; form-action 'self' https://chatgpt.com; frame-ancestors 'none'; base-uri 'none'",...(cookie?{'Set-Cookie':cookie}:{})}});
 
 export const normalizeKey = value => typeof value === 'string' ? value.trim() : '';
 export const validKey = value => value.length > 0 && value.length <= 8192 && /^[\x21-\x7E]+$/.test(value);

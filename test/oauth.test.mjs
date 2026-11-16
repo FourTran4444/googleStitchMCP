@@ -83,3 +83,18 @@ test('Google rejection keeps a retry form without creating a grant',async t=>{
  assert.equal(r.status,400);assert.match(await r.text(),/Google Stitch could not validate/);
  assert.equal(env.db.prepare("SELECT count(*) AS n FROM oauth_state WHERE kind='grant'").get().n,0);
 });
+
+test('consent CSP permits ChatGPT callback navigation while keeping other origins blocked', async () => {
+ const env=setup(),s=await start(env);
+ const r=await worker.fetch(req('/authorize?'+new URLSearchParams(s.params)),env);
+ const csp=r.headers.get('content-security-policy');
+ assert.match(csp,/form-action 'self' https:\/\/chatgpt\.com;/);
+ assert.ok(!csp.includes('*'));
+ assert.match(csp,/frame-ancestors 'none'/);
+});
+test('successful consent cannot be replayed even when callback navigation fails', async t => {
+ mockGoogle(t);const env=setup(),s=await start(env);await approve(env,s);
+ const retry=await worker.fetch(post('/authorize',{tx:s.tx,key:'synthetic_key_123456789012345',consent:'yes',decision:'allow'},{origin,cookie:s.cookie}),env);
+ assert.equal(retry.status,403);
+ assert.equal(env.db.prepare("SELECT count(*) AS n FROM oauth_state WHERE kind='grant'").get().n,1);
+});
