@@ -13,7 +13,7 @@ test('invalid routes, methods and keys never reach Google', async t => {
  t.mock.method(globalThis,'fetch',()=>{throw new Error('Unexpected network call');});
  for(const [path,options,status] of [
   ['/other',{},404], ['/mcp?key=secret',{},404], ['/mcp',{method:'PUT'},405],
-  ['/mcp',{},401], ['/mcp',{headers:{'X-Goog-Api-Key':'bad'}},401]
+  ['/mcp',{},401], ['/mcp',{headers:{'X-Goog-Api-Key':'bad key'}},401]
  ]) assert.equal((await worker.fetch(request(path,options))).status,status);
 });
 test('forwards JSON and MCP headers while isolating credentials and cookies', async t => {

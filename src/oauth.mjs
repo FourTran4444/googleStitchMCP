@@ -9,7 +9,11 @@ const headers = {'Cache-Control':'no-store','X-Content-Type-Options':'nosniff','
 export const json = (data,status=200,extra={}) => Response.json(data,{status,headers:{...headers,...extra}});
 const error = (message='invalid_request',status=400) => json({error:message},status);
 const escape = s => String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const page = (body,cookie) => new Response(`<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Stitch Cloudflare authorization</title><body><main><h1>Stitch Cloudflare</h1>${body}</main></body></html>`,{headers:{...headers,'Content-Type':'text/html; charset=utf-8','Content-Security-Policy':"default-src 'none'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'",...(cookie?{'Set-Cookie':cookie}:{})}});
+const page = (body,cookie,status=200) => new Response(`<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Stitch Cloudflare authorization</title><body><main><h1>Stitch Cloudflare</h1>${body}</main></body></html>`,{status,headers:{...headers,'Content-Type':'text/html; charset=utf-8','Content-Security-Policy':"default-src 'none'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'",...(cookie?{'Set-Cookie':cookie}:{})}});
+
+export const normalizeKey = value => typeof value === 'string' ? value.trim() : '';
+export const validKey = value => value.length > 0 && value.length <= 8192 && /^[\x21-\x7E]+$/.test(value);
+function consentPage(tx, message='', cookieValue, status=200) { return page(`<p>Authorize ChatGPT to read, create, and edit designs accessible to your Stitch API key.</p><p>Your key will be encrypted in this server's database for up to 30 days. The operator can process it at runtime. No Google password is requested.</p><form method="post" action="/authorize"><input type="hidden" name="tx" value="${tx}"><label>Stitch API key <input type="password" name="key" required autocomplete="off" maxlength="8192"></label><p><label><input type="checkbox" name="consent" value="yes" required>Allow access to my Stitch projects and screens</label></p><button name="decision" value="allow">Authorize</button><button name="decision" value="deny" formnovalidate>Cancel</button></form>`.replace('<form', `${message ? '<p role="alert">'+escape(message)+'</p>' : ''}<form`), cookieValue, status); }
 async function put(env,id,kind,data,ttl){await env.DB.prepare('INSERT OR REPLACE INTO oauth_state VALUES (?, ?, ?, ?)').bind(id,kind,JSON.stringify(data),now()+ttl).run();}
 async function get(env,id,kind,consume=false){const row=await env.DB.prepare(`${consume?'DELETE FROM':'SELECT * FROM'} oauth_state WHERE id = ? AND kind = ? AND expires > ?${consume?' RETURNING *':''}`).bind(id,kind,now()).first();return row?JSON.parse(row.data):null;}
 async function drop(env,id){await env.DB.prepare('DELETE FROM oauth_state WHERE id = ?').bind(id).run();}
@@ -41,7 +45,7 @@ export async function oauth(request,env){
   if(p.get('response_type')!=='code'||p.get('code_challenge_method')!=='S256'||! /^[A-Za-z0-9_-]{43}$/.test(p.get('code_challenge')||'')||p.get('resource')!==resource)return error();
   if((p.get('scope')||'stitch').split(' ').some(s=>!['stitch','offline_access'].includes(s)))return error('invalid_scope');
   const csrf=random(),tx=random();await put(env,await hash(tx),'pending',{params:Object.fromEntries(p),csrf:await hash(csrf)},600);
-  return page(`<p>Authorize ChatGPT to read, create, and edit designs accessible to your Stitch API key.</p><p>Your key will be encrypted in this server's database for up to 30 days. The operator can process it at runtime. No Google password is requested.</p><form method="post" action="/authorize"><input type="hidden" name="tx" value="${tx}"><label>Stitch API key <input type="password" name="key" required autocomplete="off" maxlength="256"></label><p><label><input type="checkbox" name="consent" value="yes" required>Allow access to my Stitch projects and screens</label></p><button name="decision" value="allow">Authorize</button><button name="decision" value="deny" formnovalidate>Cancel</button></form>`,`__Host-stitch_csrf=${csrf}; Secure; HttpOnly; SameSite=Lax; Path=/; Max-Age=600`);
+  return consentPage(tx,'',`__Host-stitch_csrf=${csrf}; Secure; HttpOnly; SameSite=Lax; Path=/; Max-Age=600`);
  }
  if(path==='/authorize'&&request.method==='POST'){
   if(request.headers.get('origin')!==base)return error('invalid_origin',403);
@@ -49,10 +53,12 @@ export async function oauth(request,env){
   if(!pending||pending.csrf!==await hash(cookie(request)||''))return error('invalid_session',403);
   const a=pending.params,redirect=new URL(a.redirect_uri);redirect.searchParams.set('iss',base);if(a.state)redirect.searchParams.set('state',a.state);
   if(p.get('decision')==='deny'){await drop(env,id);redirect.searchParams.set('error','access_denied');return Response.redirect(redirect,303);}
-  const key=p.get('key')||'';if(p.get('consent')!=='yes'||! /^[A-Za-z0-9_-]{20,256}$/.test(key))return error('invalid_key_or_consent');
+  const key=normalizeKey(p.get('key'));
+  if(p.get('consent')!=='yes')return consentPage(p.get('tx'),'Please check the box to allow access before authorizing.',undefined,400);
+  if(!validKey(key))return consentPage(p.get('tx'),'Paste the complete Stitch API key only, without quotes or a header name. The key must not contain internal spaces or line breaks.',undefined,400);
   // Read-only handshake verifies the credential; never generate a design to test it.
   const probe=await fetch('https://stitch.googleapis.com/mcp',{method:'POST',redirect:'manual',headers:{'X-Goog-Api-Key':key,'Content-Type':'application/json','Accept':'application/json, text/event-stream'},body:JSON.stringify({jsonrpc:'2.0',id:1,method:'initialize',params:{protocolVersion:'2025-03-26',capabilities:{},clientInfo:{name:'stitch-oauth-validation',version:'2.0.0'}}})});
-  const result=await probe.text();if(!probe.ok||!result.includes('serverInfo')||!result.includes('protocolVersion'))return page('<p>Stitch did not accept the credential or its service is unavailable. Go back and try again. No connection was saved.</p>');
+  const result=await probe.text();if(!probe.ok||!result.includes('serverInfo')||!result.includes('protocolVersion'))return consentPage(p.get('tx'),'Google Stitch could not validate this key. Check the key in Stitch settings and try again. No connection was saved.',undefined,400);
   if(!await get(env,id,'pending',true))return error('invalid_session');
   const grant=random(),code=random();await put(env,grant,'grant',{client:a.client_id,keyHash:await hash(key),key:await seal(env,key,grant)},2592000);
   await put(env,await hash(code),'code',{grant,client:a.client_id,redirect:a.redirect_uri,challenge:a.code_challenge,resource},300);
@@ -83,7 +89,7 @@ export async function oauth(request,env){
  if(path==='/manage'&&request.method==='POST'){
   const p=await form(request),csrf=p.get('csrf');if(request.headers.get('origin')!==base||!csrf||cookie(request)!==csrf||!await get(env,await hash(csrf),'manage',true))return error('invalid_session',403);
   // Key possession authorizes revocation; no account or key data is returned.
-  await env.DB.prepare("DELETE FROM oauth_state WHERE kind = 'grant' AND json_extract(data, '$.keyHash') = ?").bind(await hash(p.get('key')||'')).run();
+  await env.DB.prepare("DELETE FROM oauth_state WHERE kind = 'grant' AND json_extract(data, '$.keyHash') = ?").bind(await hash(normalizeKey(p.get('key')))).run();
   return page('<p>Matching connections have been revoked. You may close this page.</p>');
  }
  return error('not_found',404);

@@ -63,3 +63,23 @@ test('null and foreign form origins remain forbidden', async () => {
  assert.equal(accepted.status,303);
  assert.equal(new URL(accepted.headers.get('location')).searchParams.get('error'),'access_denied');
 });
+test('pasted whitespace and long opaque keys reach Google intact',async t=>{
+ const env=setup(),s=await start(env),key='synthetic.'+'x'.repeat(400)+'=';
+ let seen;
+ t.mock.method(globalThis,'fetch',async(_,options)=>{seen=options.headers['X-Goog-Api-Key'];return Response.json({result:{serverInfo:{name:'mock'},protocolVersion:'2025-03-26'}});});
+ const r=await worker.fetch(post('/authorize',{tx:s.tx,key:' \n'+key+'\n ',consent:'yes',decision:'allow'},{origin,cookie:s.cookie}),env);
+ assert.equal(r.status,303);assert.equal(seen,key);
+});
+test('missing consent gives an actionable form without echoing the key',async t=>{
+ const env=setup(),s=await start(env),key='synthetic-private-key';
+ t.mock.method(globalThis,'fetch',()=>{throw Error('Must not call Google');});
+ const r=await worker.fetch(post('/authorize',{tx:s.tx,key,decision:'allow'},{origin,cookie:s.cookie}),env);
+ assert.equal(r.status,400);const html=await r.text();assert.match(html,/Please check the box/);assert.match(html,/name="tx"/);assert.ok(!html.includes(key));
+});
+test('Google rejection keeps a retry form without creating a grant',async t=>{
+ const env=setup(),s=await start(env);
+ t.mock.method(globalThis,'fetch',async()=>new Response('denied',{status:403}));
+ const r=await worker.fetch(post('/authorize',{tx:s.tx,key:'synthetic-test-key',consent:'yes',decision:'allow'},{origin,cookie:s.cookie}),env);
+ assert.equal(r.status,400);assert.match(await r.text(),/Google Stitch could not validate/);
+ assert.equal(env.db.prepare("SELECT count(*) AS n FROM oauth_state WHERE kind='grant'").get().n,0);
+});
