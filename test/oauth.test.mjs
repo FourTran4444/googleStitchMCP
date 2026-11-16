@@ -43,3 +43,23 @@ test('full flow: PKCE, client binding, code replay, refresh rotation, revocation
 test('concurrent code exchange succeeds only once',async t=>{mockGoogle(t);const env=setup(),s=await start(env),code=await approve(env,s);const f={grant_type:'authorization_code',client_id:s.client,redirect_uri:redirect,code,code_verifier:s.verifier};const responses=await Promise.all([worker.fetch(post('/token',f),env),worker.fetch(post('/token',f),env)]);assert.deepEqual(responses.map(r=>r.status).sort(),[200,400]);});
 test('encrypted key is bound to its grant',async()=>{const env=setup(),cipher=await seal(env,'synthetic','grant-a');assert.equal(await unseal(env,cipher,'grant-a'),'synthetic');await assert.rejects(unseal(env,cipher,'grant-b'));});
 test('expired access tokens rejected',async t=>{mockGoogle(t);const env=setup(),s=await start(env),code=await approve(env,s);const tok=await (await worker.fetch(post('/token',{grant_type:'authorization_code',client_id:s.client,redirect_uri:redirect,code,code_verifier:s.verifier}),env)).json();env.db.exec("UPDATE oauth_state SET expires=0 WHERE kind='access'");assert.equal((await worker.fetch(req('/mcp',{headers:{authorization:'Bearer '+tok.access_token}}),env)).status,401);});
+
+// Native HTML form POSTs can send Origin: null under no-referrer.
+// Keep the page policy compatible with strict same-origin CSRF validation.
+test('authorization and management forms preserve same-origin POST origin', async () => {
+ const env=setup(),s=await start(env);
+ const auth=await worker.fetch(req('/authorize?'+new URLSearchParams(s.params)),env);
+ assert.equal(auth.headers.get('referrer-policy'),'same-origin');
+ const manage=await worker.fetch(req('/manage'),env);
+ assert.equal(manage.headers.get('referrer-policy'),'same-origin');
+});
+test('null and foreign form origins remain forbidden', async () => {
+ const env=setup(),s=await start(env);
+ for(const badOrigin of ['null','https://evil.example']) {
+  const r=await worker.fetch(post('/authorize',{tx:s.tx,decision:'deny'},{origin:badOrigin,cookie:s.cookie}),env);
+  assert.equal(r.status,403);
+ }
+ const accepted=await worker.fetch(post('/authorize',{tx:s.tx,decision:'deny'},{origin,cookie:s.cookie}),env);
+ assert.equal(accepted.status,303);
+ assert.equal(new URL(accepted.headers.get('location')).searchParams.get('error'),'access_denied');
+});

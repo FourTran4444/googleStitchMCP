@@ -5,7 +5,7 @@ export const random = () => b64(crypto.getRandomValues(new Uint8Array(32)));
 export const hash = async s => b64(await crypto.subtle.digest('SHA-256',enc.encode(s)));
 const now = () => Math.floor(Date.now()/1000);
 const scope = 'stitch offline_access';
-const headers = {'Cache-Control':'no-store','X-Content-Type-Options':'nosniff','Referrer-Policy':'no-referrer'};
+const headers = {'Cache-Control':'no-store','X-Content-Type-Options':'nosniff','Referrer-Policy':'same-origin'};
 export const json = (data,status=200,extra={}) => Response.json(data,{status,headers:{...headers,...extra}});
 const error = (message='invalid_request',status=400) => json({error:message},status);
 const escape = s => String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
