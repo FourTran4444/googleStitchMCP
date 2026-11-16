@@ -1,9 +1,15 @@
 # Security
 
-Never include real API keys, authorization headers, session IDs, or private designs in issues or pull requests. Revoke an exposed Stitch key in Google Stitch immediately and replace it in your client's secure settings.
+Do not publish real keys, tokens, session IDs, or private designs. Revoke an exposed Stitch key in Google Stitch and authorize again with a new key.
 
-For sensitive vulnerabilities, use GitHub's private vulnerability reporting if enabled. Otherwise contact the maintainer through a private channel listed on their GitHub profile; do not publish exploit details or credentials in a public issue.
+Use private GitHub vulnerability reporting if enabled, or a private contact listed by the maintainer. Do not disclose exploit details publicly before coordination.
 
-The Worker uses a fixed upstream, rejects redirects, forwards only selected headers, disables application logging, and does not persist keys. The operator can still access traffic and credentials at runtime. Self-host or connect directly to Google when you do not trust a proxy operator.
+OAuth keys are AES-GCM encrypted in D1 with a secret binding; plaintext is present only while serving authorized requests. Token hashes, encrypted grants, client registrations and temporary authorization records are stored in D1. The operator and hosting infrastructure remain trusted. Daily cleanup removes expired state; hosting backups have separate retention. Revoking a grant removes the active encrypted key record.
 
-Google enforces key validity and authorization. This proxy does not provide user registration, OAuth, quota enforcement, key revocation, or rate limiting. Hosts should apply suitable Cloudflare controls. Do not add a shared Google key or an unauthenticated fallback.
+S256 PKCE, exact registered callbacks, a ChatGPT callback allowlist, same-origin POST checks, CSRF cookies, single-use transactions, and atomic code/refresh consumption protect authorization. Access tokens are audience/scope checked. Rotation rejects reused refresh tokens; it does not implement automatic family revocation on replay. Grants have a fixed 30-day maximum lifetime. Reauthorize after expiration.
+
+DCR is public and registration is not proof of OpenAI client identity. Only documented ChatGPT callback URLs are accepted. This service does not verify ChatGPT mTLS certificates or OIDC email identities. Direct API-key clients remain supported.
+
+No application request logging or cache is enabled. Infrastructure can retain operational metadata. Hosts must configure suitable rate limits and usage controls before operating at public scale; application-level rate limiting is not implemented. Do not add a shared Stitch credential or no-auth design access.
+
+Never regenerate ENCRYPTION_KEY casually: existing grants depend on it. Revoke existing grants before key rotation. Keep it in Cloudflare Secrets, not source control.

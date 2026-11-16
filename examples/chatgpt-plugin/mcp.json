@@ -7,9 +7,14 @@
       "extensions": {
         "com.openai": {
           "auth": {
-            "type": "api_key",
-            "headerScheme": "custom_header",
-            "headerName": "X-Goog-Api-Key"
+            "type": "oauth",
+            "client": {
+              "mode": "dcr"
+            },
+            "defaultScopes": [
+              "stitch",
+              "offline_access"
+            ]
           }
         }
       }

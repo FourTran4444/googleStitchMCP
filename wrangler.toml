@@ -6,3 +6,15 @@ preview_urls = false
 
 [observability]
 enabled = false
+
+[vars]
+PUBLIC_ORIGIN = "https://stitch-mcp.tranvantu4444.workers.dev"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "stitch-mcp-oauth"
+database_id = "b2095345-9ff4-4bc3-ae0e-d1522716e390"
+migrations_dir = "migrations"
+
+[triggers]
+crons = ["17 3 * * *"]

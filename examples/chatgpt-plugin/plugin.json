@@ -1,8 +1,8 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "stitch-cloudflare",
-  "version": "1.0.0",
-  "description": "Connect to Google Stitch through your Cloudflare Worker using a securely entered Stitch API key.",
+  "version": "2.0.0",
+  "description": "Google Stitch MCP through Cloudflare with OAuth authorization.",
   "author": {
     "name": "Tu Tran"
   },
@@ -11,7 +11,7 @@
       "interface": {
         "displayName": "Stitch Cloudflare",
         "shortDescription": "Design with Google Stitch",
-        "longDescription": "Access Google Stitch MCP through a Cloudflare proxy. Enter your Stitch API key in connection settings. Each request uses your own key; the Worker does not store credentials.",
+        "longDescription": "Connect through OAuth. Enter a Stitch API key on the secure authorization page; the Worker stores it encrypted for the connection.",
         "developerName": "Tu Tran",
         "category": "Productivity",
         "capabilities": [],

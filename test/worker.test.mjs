@@ -30,7 +30,7 @@ test('forwards JSON and MCP headers while isolating credentials and cookies', as
   assert.equal(await new Response(options.body).text(),'{"jsonrpc":"2.0","id":1,"method":"tools/list"}');
   return new Response('{"result":{}}',{headers:{'content-type':'application/json','set-cookie':'blocked=1'}});
  });
- const r=await worker.fetch(request('/mcp',{method:'POST',headers:{'X-Goog-Api-Key':key,Authorization:'Bearer unrelated',Cookie:'private=1','Mcp-Session-Id':'session','Mcp-Protocol-Version':'2025-03-26','content-type':'application/json'},body:'{"jsonrpc":"2.0","id":1,"method":"tools/list"}'}));
+ const r=await worker.fetch(request('/mcp',{method:'POST',headers:{'X-Goog-Api-Key':key,Cookie:'private=1','Mcp-Session-Id':'session','Mcp-Protocol-Version':'2025-03-26','content-type':'application/json'},body:'{"jsonrpc":"2.0","id":1,"method":"tools/list"}'}));
  assert.equal(calls,1); assert.equal(r.status,200);
  assert.equal(r.headers.get('set-cookie'),null);
  assert.equal(r.headers.get('cache-control'),'no-store');

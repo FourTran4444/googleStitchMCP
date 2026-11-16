@@ -1,88 +1,94 @@
 # Google Stitch MCP on Cloudflare
 
-A small, dependency-free Cloudflare Worker that forwards MCP requests to Google's official Stitch server. Use it to connect a compatible MCP client to Stitch with your own API key.
+MIT-licensed community bridge between ChatGPT and Google's Stitch MCP. Not affiliated with Google, OpenAI, or Cloudflare.
 
-Community project; not affiliated with or endorsed by Google, Cloudflare, or OpenAI. The MIT license covers this proxy, not Google's service or its generated content.
+## Connect from ChatGPT web
 
-## How it works
+1. Open **Plugins → + → Add custom MCP server**.
+2. Name it **Stitch MCP**. Use `https://stitch-mcp.tranvantu4444.workers.dev/mcp` for the maintained deployment, or your own deployed endpoint.
+3. Choose **OAuth**. Discovery provides the endpoints automatically. If advanced settings ask for a client setup method, select **Dynamic client registration (DCR)**. No client secret is required. Scopes: `stitch offline_access`.
+4. Review the connection warning and create the plugin. Complete authorization when prompted.
+5. On the **Stitch Cloudflare** authorization page, enter your Stitch API key and explicitly approve access. Never enter your Gmail password or put the key in chat.
+6. Install/select the resulting plugin in a conversation and ask **List my Stitch projects**.
 
-Your MCP client → your Cloudflare Worker → `https://stitch.googleapis.com/mcp`.
+Generate a key at [Google Stitch](https://stitch.google.com/) → profile → Stitch settings → API key.
 
-- `POST`, `GET`, and `DELETE` on `/mcp` are forwarded to the fixed Google endpoint.
-- Each request supplies `X-Goog-Api-Key`; Google validates it. A syntactically valid key alone does not prove authorization.
-- JSON, event streams, MCP session IDs, protocol versions, and retry hints pass through.
-- Keys are not stored by the application. Request logging is disabled in the deployment configuration.
-- Redirects are rejected and design mutations are never automatically retried.
-- `/health` reports proxy availability only, not authenticated Stitch access.
+The old downloadable plugin package did not establish a ChatGPT web connection. Use **Add custom MCP server** above. The portable example now declares OAuth, but packaging alone still does not activate a web connection.
 
-This proxy does not implement its own design tools. Tools are discovered from Google after authentication. Google's available tools, quotas, and permissions determine what you can create or edit.
+If ChatGPT cached the old OAuth-discovery failure, close and reopen the creation dialog and enter the same server URL again. Do not select no authentication.
 
-## Deploy your own Worker
+## Authentication and data handling
 
-Requirements: Node.js 22 or newer, npm, a Cloudflare account, and a Stitch API key.
+ChatGPT → OAuth access token → Cloudflare → Stitch API key → Google Stitch.
+
+- OAuth authorization code flow with S256 PKCE and dynamic registration of public clients.
+- Redirects restricted to the documented ChatGPT HTTPS callback paths and exactly matched to the registered client.
+- Explicit consent, same-origin form submissions, short-lived CSRF cookie, and one-time authorization transaction.
+- Read-only Google MCP initialization validates the key before storing a grant. No screen is generated as a connection test.
+- API keys encrypted with AES-256-GCM, bound to individual grants. Encryption key is a Cloudflare secret.
+- Opaque access/refresh tokens stored as SHA-256 hashes. Access expires after one hour; refresh rotates on each use. Authorization codes expire after five minutes and are consumed atomically.
+- Grants expire after 30 days, requiring reauthorization. Revocation disables every access/refresh token for the affected grant immediately.
+- Daily cleanup removes expired records. Hosting backups may retain deleted encrypted records under Cloudflare's retention policy.
+
+**The proxy operator can process credentials and traffic at runtime. Self-host if you do not trust the operator.** Source is open; this is not an independent security certification. No OIDC email identity, Google sign-in, or enterprise verified-email integration is implemented.
+
+## Revoke access
+
+Open `/manage` on your Worker and enter the same Stitch key to revoke its stored connections. Alternatively, OAuth clients can POST `token` and `client_id` to `/revoke`. Disconnecting in ChatGPT should not be assumed to call revocation. Revoking the API key in Google Stitch also blocks upstream use.
+
+## Self-host
+
+Requirements: Node.js **22.13+** (tests use built-in SQLite), npm, Cloudflare Workers and D1 access.
 
 ```sh
 git clone https://github.com/FourTran4444/googleStitchMCP.git
 cd googleStitchMCP
 npm test
 npx wrangler@4 login
+npx wrangler@4 d1 create stitch-mcp-oauth
+```
+
+Edit `wrangler.toml`: choose your Worker name, set `PUBLIC_ORIGIN` to its exact HTTPS origin (no trailing slash), and replace the D1 ID with the one returned above. The checked-in IDs describe the maintained deployment, not credentials; forks must use their own resources.
+
+```sh
+npx wrangler@4 d1 migrations apply stitch-mcp-oauth --remote
+npx wrangler@4 secret put ENCRYPTION_KEY
 npx wrangler@4 deploy
 ```
 
-Change `name` in `wrangler.toml` if needed. Wrangler displays your deployed URL. No database, KV namespace, or server-side Stitch secret is required. Cloudflare usage and Google quotas apply; this project does not guarantee free hosting.
+At the secret prompt, enter a cryptographically random 32-byte base64url value generated locally (for example with `node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"`). Keep it out of Git. Losing or replacing it invalidates existing encrypted credentials; revoke old grants before rotating it. Never use a Stitch key as the encryption key.
 
-Create your key in [Google Stitch](https://stitch.google.com/) → profile menu → Stitch settings → API key. Enter it into your client's secure credential settings. Do not put a real key in source files, URLs, GitHub issues, screenshots, or chat.
+Cloudflare dashboard Git integration: connect this repository to the Worker, production branch `main`, root repository directory, build command `npm test && npm run check`, deploy command `npx wrangler@4 deploy`. Provision D1, apply migrations, and configure the encryption secret before the first deployment. Keep Node.js at 22.13+ or 24.
 
-## Connect ChatGPT
+No paid-plan upgrade is required by this code. Provider quotas and usage charges depend on your account. Deployments are public endpoints; rate limiting is an operator responsibility.
 
-The `examples/chatgpt-plugin` directory contains a portable plugin manifest and MCP connection template:
+## Endpoints
 
-1. Replace `https://YOUR-WORKER.YOUR-SUBDOMAIN.workers.dev/mcp` in `mcp.json` with your deployed endpoint.
-2. Package `plugin.json` and `mcp.json` together and use a ChatGPT plugin import/creation workflow that supports remote MCP and API-key authentication.
-3. Connect the plugin and enter your Stitch API key in its secure credential field. The configuration uses the custom header `X-Goog-Api-Key`.
-4. Ask ChatGPT to list your Stitch projects, then request a design in a chosen project.
+| Path | Purpose |
+|---|---|
+| `/mcp` | Authenticated Streamable HTTP proxy |
+| `/.well-known/oauth-protected-resource/mcp` | Resource discovery |
+| `/.well-known/oauth-authorization-server` | OAuth discovery |
+| `/register` | Dynamic public-client registration |
+| `/authorize` | Credential entry and consent |
+| `/token` | Code exchange and refresh rotation |
+| `/revoke` | Token-based grant revocation |
+| `/manage` | Key-based connection revocation |
+| `/health` | Proxy liveness only |
 
-Availability depends on your ChatGPT account and client. A URL-only or OAuth-only connector cannot use this API-key proxy without a compatible connection workflow. This repository does not implement OAuth or publish a public ChatGPT directory listing.
+Clients supporting secure custom headers can still send `X-Goog-Api-Key` directly. ChatGPT web uses OAuth. The fixed upstream is `https://stitch.googleapis.com/mcp`; credentials are never forwarded on redirects, and mutations are not automatically retried.
 
-For other clients, configure Streamable HTTP at your `/mcp` endpoint with a securely supplied `X-Goog-Api-Key` header. If your client supports Google's endpoint directly, you may connect directly without this proxy.
-
-## Verify and troubleshoot
-
-```sh
-curl https://YOUR-WORKER.YOUR-SUBDOMAIN.workers.dev/health
-curl -i -X POST https://YOUR-WORKER.YOUR-SUBDOMAIN.workers.dev/mcp
-```
-
-The first request should return `200`; the second should return `401`. Then use your authenticated client's tool discovery and list-projects operation. Test design generation only when you intend to create a screen.
-
-- **401 / 403:** check the secure credential setting and Google account/API access.
-- **404:** use the exact `/mcp` path without query parameters.
-- **502:** upstream unavailable or redirected. Check your Stitch project before retrying a creation request to avoid duplicates.
-- **Long-running design request:** client and service timeouts still apply. Inspect Stitch before retrying.
-
-Validation status: proxy unit tests and the original deployment's health/missing-key checks passed. Authenticated upstream discovery and design generation have not yet been verified with an owner-provided key.
-
-## Security and trust
-
-Self-host when possible. The Worker operator and infrastructure process the API key and design traffic in transit; “not stored” does not mean the proxy cannot access them. There is no shared owner credential, app database, or application cache. Platform metadata may still be retained by hosting providers.
-
-The public endpoint accepts requests from anyone supplying their own key, consuming the operator's Worker quota. Apply deployment-level access/rate controls appropriate to your use. Browser cross-origin use is intentionally not enabled. See [SECURITY.md](SECURITY.md).
-
-## Development
+## Verification
 
 ```sh
 npm test
-npx wrangler@4 dev
+npm run check
+curl https://YOUR-WORKER.YOUR-SUBDOMAIN.workers.dev/.well-known/oauth-authorization-server
+curl -i -X POST https://YOUR-WORKER.YOUR-SUBDOMAIN.workers.dev/mcp
 ```
 
-Tests use Node's built-in test runner and mocked upstream responses. They do not contact Google or create designs. See [CONTRIBUTING.md](CONTRIBUTING.md).
+Expect discovery JSON with S256 PKCE and DCR, and an unauthenticated MCP `401` containing `WWW-Authenticate`. Unit tests use real SQLite and Web Crypto with mocked Google responses. Live Google access and actual ChatGPT design creation require a real user key and must be verified separately; deployment or a successful health check is not evidence of that acceptance.
 
-## References
+See [SECURITY.md](SECURITY.md), [CONTRIBUTING.md](CONTRIBUTING.md), and [MIT license](LICENSE).
 
-- [Google's Stitch MCP API-key configuration](https://github.com/gemini-cli-extensions/stitch/blob/main/gemini-extension-apikey.json)
-- [Google's Stitch setup guide](https://codelabs.developers.google.com/design-to-code-with-antigravity-stitch)
-- [Cloudflare Workers documentation](https://developers.cloudflare.com/workers/)
-
-## License
-
-[MIT](LICENSE) © 2026 Tu Tran.
+References: [OpenAI OAuth requirements](https://developers.openai.com/plugins/build/auth), [Google Stitch API-key configuration](https://github.com/gemini-cli-extensions/stitch/blob/main/gemini-extension-apikey.json).
