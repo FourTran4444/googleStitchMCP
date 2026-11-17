@@ -42,6 +42,29 @@ The old downloadable plugin package did not establish a ChatGPT web connection. 
 
 If ChatGPT cached the old OAuth-discovery failure, close and reopen the creation dialog and enter the same server URL again. Do not select no authentication.
 
+## Connect from another AI chat or MCP client
+
+Your AI application must support **remote Streamable HTTP MCP**. Look for an integration setting named MCP servers, custom tools, connectors, or developer integrations.
+
+### Option A: the client supports OAuth
+
+1. Create a new remote MCP connection.
+2. Enter `https://stitch-mcp.tranvantu4444.workers.dev/mcp` as the server URL.
+3. Choose **OAuth** or **automatic authentication discovery**.
+4. If requested, use dynamic client registration, PKCE `S256`, and scopes `stitch offline_access`.
+5. In the authorization page, enter the Stitch API key created in Google Stitch settings and approve the requested access.
+6. Return to the AI chat and verify the connection by asking it to list your Stitch projects.
+7. Select a project before asking it to create or edit a screen.
+
+### Option B: the client supports secure custom headers
+
+1. Create a new remote Streamable HTTP MCP connection using the same `/mcp` URL.
+2. In the client's secure credential settings, add the header `X-Goog-Api-Key` with your Stitch API key as its value.
+3. Save the credential in the client. Do not put the key in its normal prompt, source code, URL, or shared configuration.
+4. Ask the client to discover tools, then list your Stitch projects before making a design request.
+
+If the AI chat supports neither remote MCP OAuth nor secure custom headers, it cannot connect to this server directly. Use a compatible MCP host or self-host the project and configure access through that host. Tool names and setup labels vary by client; the server URL and authentication requirements remain the same.
+
 ## Authentication and data handling
 
 ChatGPT → OAuth access token → Cloudflare → Stitch API key → Google Stitch.
