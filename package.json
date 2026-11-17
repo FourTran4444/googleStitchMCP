@@ -1,9 +1,25 @@
 {
   "name": "google-stitch-mcp-cloudflare",
   "version": "2.0.0",
+  "description": "Open-source Cloudflare MCP bridge connecting ChatGPT to Google Stitch.",
   "private": true,
   "type": "module",
   "license": "MIT",
+  "homepage": "https://stitch-mcp.tranvantu4444.workers.dev/",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/FourTran4444/googleStitchMCP.git"
+  },
+  "bugs": {
+    "url": "https://github.com/FourTran4444/googleStitchMCP/issues"
+  },
+  "keywords": [
+    "google-stitch",
+    "mcp",
+    "chatgpt",
+    "cloudflare-workers",
+    "oauth"
+  ],
   "engines": {
     "node": ">=22.13"
   },

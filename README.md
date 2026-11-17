@@ -1,6 +1,23 @@
 # Google Stitch MCP on Cloudflare
 
+[![MIT License](https://img.shields.io/badge/license-MIT-7c3aed.svg)](LICENSE)
+[![Cloudflare Workers](https://img.shields.io/badge/runtime-Cloudflare%20Workers-f38020.svg)](https://workers.cloudflare.com/)
+[![MCP](https://img.shields.io/badge/protocol-MCP-38bdf8.svg)](https://modelcontextprotocol.io/)
+[![Tests](https://img.shields.io/badge/tests-23%20passing-22c55e.svg)](#verification)
+
 MIT-licensed community bridge between ChatGPT and Google's Stitch MCP. Not affiliated with Google, OpenAI, or Cloudflare.
+
+**[Open the maintained service](https://stitch-mcp.tranvantu4444.workers.dev/)** · **[Connect from ChatGPT](#connect-from-chatgpt-web)** · **[Deploy your own](#self-host)** · **[Security model](SECURITY.md)**
+
+## Why this project is open source
+
+This bridge handles a sensitive credential, so its behavior should be inspectable. The complete request path is in this repository: the Cloudflare Worker, OAuth flow, encrypted grant storage, database migration, tests, deployment configuration, security notes, and contribution guide.
+
+- **Use the maintained deployment** for the shortest setup path.
+- **Self-host the same code** when you want full control of infrastructure, secrets, logs, and retention.
+- **Audit or fork it** under the MIT license. Issues and pull requests are welcome.
+
+The live interface always identifies itself as a community project and links back to this repository. The operator can process API keys and MCP traffic at runtime; open source makes that implementation visible, but does not remove the need to trust the deployment you choose.
 
 ## Connect from ChatGPT web
 
