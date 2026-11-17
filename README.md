@@ -9,6 +9,14 @@ MIT-licensed community bridge between ChatGPT and Google's Stitch MCP. Not affil
 
 **[Open the maintained service](https://stitch-mcp.tranvantu4444.workers.dev/)** · **[Connect from ChatGPT](#connect-from-chatgpt-web)** · **[Deploy your own](#self-host)** · **[Security model](SECURITY.md)**
 
+## Why we built it
+
+Google Stitch authenticates MCP requests with an API key, while ChatGPT web custom MCP connections use OAuth. That mismatch meant ChatGPT could not work with Stitch through a normal secure connection without another component translating between the two authentication models.
+
+We built this bridge so a user can authorize ChatGPT with their own Stitch API key without sharing a Gmail password, pasting the key into chat, or embedding it in a public plugin manifest. The Cloudflare Worker validates the key against Google's Stitch MCP, encrypts it for a time-limited grant, and uses it only when forwarding authorized MCP requests.
+
+We made the complete project open source because it sits on a sensitive trust boundary. Users should be able to inspect how credentials are processed, understand what the operator can access, contribute security improvements, and deploy an independent copy under their own Cloudflare account.
+
 ## Why this project is open source
 
 This bridge handles a sensitive credential, so its behavior should be inspectable. The complete request path is in this repository: the Cloudflare Worker, OAuth flow, encrypted grant storage, database migration, tests, deployment configuration, security notes, and contribution guide.
